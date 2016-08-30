@@ -15,13 +15,13 @@ public struct OAuthClient: NetworkClient {
 
 	public let clientID: String
 	private let clientSecret: String
-	public let baseURL: NSURL
-	public let session: NSURLSession
+	public let baseURL: URL
+	public let session: URLSession
 
 
 	// MARK: - Initializers
 
-	public init(clientID: String, clientSecret: String, baseURL: NSURL = CanvasKit.baseURL, session: NSURLSession = NSURLSession.sharedSession()) {
+	public init(clientID: String, clientSecret: String, baseURL: URL = CanvasKit.baseURL as URL, session: URLSession = URLSession.shared) {
 		self.clientID = clientID
 		self.clientSecret = clientSecret
 		self.baseURL = baseURL
@@ -31,18 +31,18 @@ public struct OAuthClient: NetworkClient {
 
 	// MARK: - Obtaining an Account with Access Token
 
-	public func createAccessToken(username username: String, password: String, completion: Result<Account> -> Void) {
+	public func createAccessToken(username: String, password: String, completion: @escaping (Result<Account>) -> Void) {
 		let params = [
-			NSURLQueryItem(name: "username", value: username),
-			NSURLQueryItem(name: "password", value: password),
-			NSURLQueryItem(name: "scope", value: "global"),
-			NSURLQueryItem(name: "grant_type", value: "password")
+			URLQueryItem(name: "username", value: username),
+			URLQueryItem(name: "password", value: password),
+			URLQueryItem(name: "scope", value: "global"),
+			URLQueryItem(name: "grant_type", value: "password")
 		]
 
 		let baseURL = self.baseURL
-		let request = NSMutableURLRequest(URL: baseURL.URLByAppendingPathComponent("oauth/access-tokens"))
-		request.HTTPMethod = "POST"
-		request.HTTPBody = formEncode(params).dataUsingEncoding(NSUTF8StringEncoding)
+		var request = URLRequest(url: baseURL.appendingPathComponent("oauth/access-tokens"))
+		request.httpMethod = "POST"
+		request.httpBody = formEncode(params).data(using: String.Encoding.utf8)
 		request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
 		send(request: request, completion: completion)
@@ -56,15 +56,15 @@ public struct OAuthClient: NetworkClient {
 	/// Revoke an access token.
 	///
 	/// - parameter completion: A function to call when the request finishes.
-	public func revokeAccessToken(accessToken: String, completion: (Result<Void> -> Void)? = nil) {
+	public func revokeAccessToken(_ accessToken: String, completion: ((Result<Void>) -> Void)? = nil) {
 		let params = [
-			NSURLQueryItem(name: "access_token", value: accessToken),
+			URLQueryItem(name: "access_token", value: accessToken),
 		]
 
 		let baseURL = self.baseURL
-		let request = NSMutableURLRequest(URL: baseURL.URLByAppendingPathComponent("oauth/access-tokens/actions/revoke"))
-		request.HTTPMethod = "POST"
-		request.HTTPBody = formEncode(params).dataUsingEncoding(NSUTF8StringEncoding)
+		var request = URLRequest(url: baseURL.appendingPathComponent("oauth/access-tokens/actions/revoke"))
+		request.httpMethod = "POST"
+		request.httpBody = formEncode(params).data(using: String.Encoding.utf8)
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
 		send(request: request, completion: completion)
@@ -73,109 +73,111 @@ public struct OAuthClient: NetworkClient {
 
 	// MARK: - Private
 
-	private func formEncode(queryItems: [NSURLQueryItem]) -> String {
-		let characterSet = NSMutableCharacterSet.alphanumericCharacterSet()
-		characterSet.addCharactersInString("-._~")
+	private func formEncode(_ queryItems: [URLQueryItem]) -> String {
+		let characterSet = NSMutableCharacterSet.alphanumeric()
+		characterSet.addCharacters(in: "-._~")
 
 		return queryItems.flatMap { item -> String? in
-			guard var output = item.name.stringByAddingPercentEncodingWithAllowedCharacters(characterSet) else { return nil }
+			guard var output = item.name.addingPercentEncoding(withAllowedCharacters: characterSet as CharacterSet) else { return nil }
 
 			output += "="
 
-			if let value = item.value?.stringByAddingPercentEncodingWithAllowedCharacters(characterSet) {
+			if let value = item.value?.addingPercentEncoding(withAllowedCharacters: characterSet as CharacterSet) {
 				output += value
 			}
 
 			return output
-			}.joinWithSeparator("&")
+			}.joined(separator: "&")
 	}
 
-	private func authorizationHeader(username username: String, password: String) -> String? {
-		guard let data = "\(username):\(password)".dataUsingEncoding(NSUTF8StringEncoding)
+	private func authorizationHeader(username: String, password: String) -> String? {
+		guard let data = "\(username):\(password)".data(using: String.Encoding.utf8)
 			else { return nil }
 
-		let base64 = data.base64EncodedStringWithOptions([])
+		let base64 = data.base64EncodedString(options: [])
 		return "Basic \(base64)"
 	}
 
-	private func send(request request: NSMutableURLRequest, completion: (Result<Void> -> Void)?) {
+	private func send(request: URLRequest, completion: ((Result<Void>) -> Void)?) {
+		var request = request
 		request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Accept")
 
 		if let authorization = authorizationHeader(username: clientID, password: clientSecret) {
 			request.setValue(authorization, forHTTPHeaderField: "Client-Authorization")
 		} else {
-			dispatch_async(networkCompletionQueue) {
-				completion?(.Failure("Failed to create request"))
+			networkCompletionQueue.async {
+				completion?(.failure("Failed to create request"))
 			}
 			return
 		}
 
 		let session = self.session
-		session.dataTaskWithRequest(request) { _, response, _ in
-			guard let status = (response as? NSHTTPURLResponse)?.statusCode
-			where status == 201
+		session.dataTask(with: request) { _, response, _ in
+			guard let status = (response as? HTTPURLResponse)?.statusCode
+			, status == 201
 			else {
-				dispatch_async(networkCompletionQueue) {
-					completion?(.Failure("Invalid response."))
+				networkCompletionQueue.async {
+					completion?(.failure("Invalid response."))
 				}
 				return
 			}
 
-			dispatch_async(networkCompletionQueue) {
-				completion?(.Success())
+			networkCompletionQueue.async {
+				completion?(.success())
 			}
 		}.resume()
 	}
 
-	private func send(request request: NSMutableURLRequest, completion: Result<Account> -> Void) {
+	private func send(request: URLRequest, completion: @escaping (Result<Account>) -> Void) {
+		var request = request
 		request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Accept")
 
 		// Set the client credentials to the "Authorization" header per the OAuth spec
 		if let authorization = authorizationHeader(username: clientID, password: clientSecret) {
 			request.setValue(authorization, forHTTPHeaderField: "Authorization")
 		} else {
-			dispatch_async(networkCompletionQueue) {
-				completion(.Failure("Failed to create request"))
+			networkCompletionQueue.async {
+				completion(.failure("Failed to create request"))
 			}
 			return
 		}
 
 		let session = self.session
-		session.dataTaskWithRequest(request) { responseData, response, error in
+		session.dataTask(with: request) { responseData, response, error in
 			guard let responseData = responseData,
-				json = try? NSJSONSerialization.JSONObjectWithData(responseData, options: []),
-				dictionary = json as? JSONDictionary
+				let json = try? JSONSerialization.jsonObject(with: responseData, options: []),
+				let dictionary = json as? JSONDictionary
 				else {
-					dispatch_async(networkCompletionQueue) {
-						completion(.Failure("Invalid response."))
+					networkCompletionQueue.async {
+						completion(.failure("Invalid response."))
 					}
 					return
 			}
 
 			// Log in
 			if dictionary["access_token"] is String, let account = Account(dictionary: dictionary) {
-				dispatch_async(networkCompletionQueue) {
-					completion(.Success(account))
+				networkCompletionQueue.async {
+					completion(.success(account))
 				}
 				return
 			}
 
 			if let message = dictionary["message"] as? String {
-				dispatch_async(networkCompletionQueue) {
-					completion(.Failure(message))
+				networkCompletionQueue.async {
+					completion(.failure(message))
 				}
 				return
 			}
 
-			if let error = dictionary["error"] as? String where error == "invalid_resource_owner" {
-				dispatch_async(networkCompletionQueue) {
-					completion(.Failure("Username/email or password incorrect."))
+			if let error = dictionary["error"] as? String , error == "invalid_resource_owner" {
+				networkCompletionQueue.async {
+					completion(.failure("Username/email or password incorrect."))
 				}
 				return
 			}
 
-			dispatch_async(networkCompletionQueue) {
-				completion(.Failure("Invalid response."))
+			networkCompletionQueue.async {
+				completion(.failure("Invalid response."))
 			}
 		}.resume()
 	}

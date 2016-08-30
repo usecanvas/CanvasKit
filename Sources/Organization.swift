@@ -21,40 +21,40 @@ public struct Organization {
 
 		// From https://github.com/soffes/X
 		public init?(hex string: String) {
-			var hex = string as NSString
+			var hex = string
 
 			// Remove `#` and `0x`
 			if hex.hasPrefix("#") {
-				hex = hex.substringFromIndex(1)
+				hex = hex.substring(from: hex.index(hex.startIndex, offsetBy: 1))
 			} else if hex.hasPrefix("0x") {
-				hex = hex.substringFromIndex(2)
+				hex = hex.substring(from: hex.index(hex.startIndex, offsetBy: 2))
 			}
 
 			// Invalid if not 3, 6, or 8 characters
-			let length = hex.length
+			let length = hex.characters.count
 			if length != 3 && length != 6 && length != 8 {
 				return nil
 			}
 
 			// Make the string 8 characters long for easier parsing
 			if length == 3 {
-				let r = hex.substringWithRange(NSRange(location: 0, length: 1))
-				let g = hex.substringWithRange(NSRange(location: 1, length: 1))
-				let b = hex.substringWithRange(NSRange(location: 2, length: 1))
+				let r = hex.substring(with: hex.startIndex..<hex.index(hex.startIndex, offsetBy: 1))
+				let g = hex.substring(with: hex.index(hex.startIndex, offsetBy: 1)..<hex.index(hex.startIndex, offsetBy: 2))
+				let b = hex.substring(with: hex.index(hex.startIndex, offsetBy: 2)..<hex.index(hex.startIndex, offsetBy: 3))
 				hex = r + r + g + g + b + b + "ff"
 			} else if length == 6 {
 				hex = String(hex) + "ff"
 			}
 
 			// Convert 2 character strings to CGFloats
-			func hexValue(string: String) -> Double {
+			func hexValue(_ string: String) -> Double {
 				let value = Double(strtoul(string, nil, 16))
 				return value / 255
 			}
 
-			red = hexValue(hex.substringWithRange(NSRange(location: 0, length: 2)))
-			green = hexValue(hex.substringWithRange(NSRange(location: 2, length: 2)))
-			blue = hexValue(hex.substringWithRange(NSRange(location: 4, length: 2)))
+			red = hexValue(hex.substring(with: hex.startIndex..<hex.index(hex.startIndex, offsetBy: 2)))
+			green = hexValue(hex.substring(with: hex.index(hex.startIndex, offsetBy: 2)..<hex.index(hex.startIndex, offsetBy: 4)))
+			blue = hexValue(hex.substring(with: hex.index(hex.startIndex, offsetBy: 4)..<hex.index(hex.startIndex, offsetBy: 6)))
 		}
 	}
 
@@ -98,9 +98,9 @@ extension Organization: JSONSerializable, JSONDeserializable {
 
 	public init?(dictionary: JSONDictionary) {
 		guard let id = dictionary["id"] as? String,
-			name = dictionary["name"] as? String,
-			slug = dictionary["slug"] as? String,
-			membersCount = dictionary["members_count"] as? UInt
+			let name = dictionary["name"] as? String,
+			let slug = dictionary["slug"] as? String,
+			let membersCount = dictionary["members_count"] as? UInt
 		else { return nil }
 
 		self.id = id

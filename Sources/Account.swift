@@ -16,7 +16,7 @@ public struct Account {
 	public let id: String
 	public let accessToken: String
 	public let email: String
-	public let verifiedAt: NSDate?
+	public let verifiedAt: Date?
 	public let user: User
 }
 
@@ -29,7 +29,7 @@ extension Account: JSONSerializable, JSONDeserializable {
 			"user": user.dictionary
 		]
 
-		if let verifiedAt = verifiedAt?.ISO8601String() {
+		if let verifiedAt = (verifiedAt as NSDate?)?.iso8601String() {
 			account["verified_at"] = verifiedAt
 		}
 
@@ -41,17 +41,17 @@ extension Account: JSONSerializable, JSONDeserializable {
 
 	public init?(dictionary: JSONDictionary) {
 		guard let accessToken = dictionary["access_token"] as? String,
-			accountDictionary = dictionary["account"] as? JSONDictionary,
-			email = accountDictionary["email"] as? String,
-			userDictionary = accountDictionary["user"] as? JSONDictionary,
-			user = User(dictionary: userDictionary)
+			let accountDictionary = dictionary["account"] as? JSONDictionary,
+			let email = accountDictionary["email"] as? String,
+			let userDictionary = accountDictionary["user"] as? JSONDictionary,
+			let user = User(dictionary: userDictionary)
 		else { return nil }
 
 		id = user.id
 		self.accessToken = accessToken
 		self.user = user
 		self.email = email
-		verifiedAt = (accountDictionary["verified_at"] as? String).flatMap { NSDate(ISO8601String: $0) }
+		verifiedAt = (accountDictionary["verified_at"] as? String).flatMap { NSDate(iso8601String: $0) as? Date }
 	}
 }
 
@@ -65,6 +65,6 @@ extension Account: Resource {
 
 		let username: String = try data.decode(attribute: "username")
 		let avatarURL: String = try data.decode(attribute: "avatar_url")
-		user = User(id: id, username: username, avatarURL: NSURL(string: avatarURL))
+		user = User(id: id, username: username, avatarURL: URL(string: avatarURL))
 	}
 }

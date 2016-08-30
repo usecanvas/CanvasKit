@@ -8,18 +8,18 @@
 
 import Foundation
 
-let baseURL = NSURL(string: "https://api.usecanvas.com/")!
-let networkCompletionQueue = dispatch_queue_create("com.usecanvas.canvaskit.network-callback", DISPATCH_QUEUE_CONCURRENT)
+let baseURL = URL(string: "https://api.usecanvas.com/")!
+let networkCompletionQueue = DispatchQueue(label: "com.usecanvas.canvaskit.network-callback", attributes: DispatchQueue.Attributes.concurrent)
 
 
 public protocol NetworkClient {
 
-	var baseURL: NSURL { get }
-	var session: NSURLSession { get }
+	var baseURL: URL { get }
+	var session: URLSession { get }
 }
 
 
 public enum Result<T> {
-	case Success(T)
-	case Failure(String)
+	case success(T)
+	case failure(String)
 }

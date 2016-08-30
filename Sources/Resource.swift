@@ -9,9 +9,9 @@
 import Foundation
 import ISO8601
 
-typealias Attributes = [String: AnyObject]
+typealias Attributes = JSONDictionary
 typealias Includes = [ResourceType: [String: Resource]]
-typealias ResourceIdentifiers = [String: AnyObject]
+typealias ResourceIdentifiers = JSONDictionary
 
 protocol Resource {
 	var id: String { get }
@@ -36,7 +36,7 @@ enum ResourceType: String {
 }
 
 
-enum ResourceError: ErrorType {
+enum ResourceError: Error {
 	case invalidAttribute(String)
 	case missingAttribute(String)
 	case missingInclude(String, ResourceIdentifier)
@@ -49,8 +49,8 @@ struct ResourceIdentifier {
 	
 	init?(dictionary: JSONDictionary) {
 		guard let data = dictionary["data"] as? JSONDictionary,
-			id = data["id"] as? String,
-			type = (data["type"] as? String).flatMap(ResourceType.init)
+			let id = data["id"] as? String,
+			let type = (data["type"] as? String).flatMap(ResourceType.init)
 		else { return nil }
 		
 		self.id = id
@@ -69,8 +69,8 @@ struct ResourceData {
 	
 	init?(dictionary: JSONDictionary, includes: Includes?, meta: JSONDictionary?) {
 		guard let id = dictionary["id"] as? String,
-			type = (dictionary["type"] as? String).flatMap(ResourceType.init),
-			attributes = dictionary["attributes"] as? JSONDictionary
+			let type = (dictionary["type"] as? String).flatMap(ResourceType.init),
+			let attributes = dictionary["attributes"] as? JSONDictionary
 		else { return nil }
 		
 		self.id = id
@@ -103,18 +103,18 @@ struct ResourceData {
 		return attributes[key] as? T
 	}
 	
-	func decode(attribute key: String) throws -> NSDate {
+	func decode(attribute key: String) throws -> Date {
 		guard let iso8601 = attributes[key] as? String,
-			date = NSDate(ISO8601String: iso8601)
-			else {
-				throw ResourceError.missingAttribute(key)
+			let date = NSDate(iso8601String: iso8601)
+		else {
+			throw ResourceError.missingAttribute(key)
 		}
-		return date
+		return date as Date
 	}
 	
-	func decode(attribute key: String) -> NSDate? {
+	func decode(attribute key: String) -> Date? {
 		let iso8601 = attributes[key] as? String
-		return iso8601.flatMap { NSDate(ISO8601String: $0) }
+		return iso8601.flatMap { NSDate(iso8601String: $0) as? Date }
 	}
 	
 	func decode<T>(relationship key: String) throws -> T {
@@ -132,14 +132,14 @@ struct ResourceData {
 
 
 struct ResourceSerialization {
-	private static func includes(dictionary: JSONDictionary) -> Includes? {
+	private static func includes(_ dictionary: JSONDictionary) -> Includes? {
 		guard let array = dictionary["included"] as? [JSONDictionary] else { return nil }
 		var includes = Includes()
 		
 		for dictionary in array {
 			guard let type = (dictionary["type"] as? String).flatMap(ResourceType.init),
-				resourceData = ResourceData(dictionary: dictionary, includes: nil, meta: nil),
-				resource = unpack(resourceData: resourceData)
+				let resourceData = ResourceData(dictionary: dictionary, includes: nil, meta: nil),
+				let resource = unpack(resourceData: resourceData)
 			else { continue }
 			
 			if includes[type] == nil {
@@ -152,7 +152,7 @@ struct ResourceSerialization {
 		return includes
 	}
 	
-	static func deserialize<T: Resource>(dictionary dictionary: JSONDictionary) -> [T]? {
+	static func deserialize<T: Resource>(dictionary: JSONDictionary) -> [T]? {
 		guard let datas = dictionary["data"] as? [JSONDictionary] else { return nil }
 		
 		let includes = self.includes(dictionary)
@@ -160,14 +160,14 @@ struct ResourceSerialization {
 		
 		return datas.flatMap { data in
 			guard let resourceData = ResourceData(dictionary: data, includes: includes, meta: meta),
-				resource = try? resourceData.type.resource.init(data: resourceData)
+				let resource = try? resourceData.type.resource.init(data: resourceData)
 			else { return nil }
 			
 			return resource as? T
 		}
 	}
 	
-	static func deserialize<T: Resource>(dictionary dictionary: JSONDictionary) -> T? {
+	static func deserialize<T: Resource>(dictionary: JSONDictionary) -> T? {
 		guard let data = dictionary["data"] as? JSONDictionary else { return nil }
 
 		let includes = self.includes(dictionary)
@@ -178,7 +178,7 @@ struct ResourceSerialization {
 		return unpack(resourceData: resourceData) as? T
 	}
 
-	private static func unpack(resourceData resourceData: ResourceData) -> Resource? {
+	private static func unpack(resourceData: ResourceData) -> Resource? {
 		let resource: Resource
 
 		do {

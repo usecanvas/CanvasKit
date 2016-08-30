@@ -14,7 +14,7 @@ public struct User {
 	
 	public let id: String
 	public let username: String?
-	public let avatarURL: NSURL?
+	public let avatarURL: URL?
 }
 
 
@@ -40,7 +40,7 @@ extension User: JSONSerializable, JSONDeserializable {
 		
 		self.id = id
 		username = dictionary["username"] as? String
-		avatarURL = (dictionary["avatar_url"] as? String).flatMap { NSURL(string: $0) }
+		avatarURL = (dictionary["avatar_url"] as? String).flatMap { URL(string: $0) }
 	}
 }
 

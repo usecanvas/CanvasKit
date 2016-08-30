@@ -8,7 +8,7 @@
 
 import Foundation
 
-public typealias JSONDictionary = [String: AnyObject]
+public typealias JSONDictionary = [String: Any]
 
 public protocol JSONSerializable {
 	var dictionary: JSONDictionary { get }
